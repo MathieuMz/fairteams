@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #F5F3EC;
+  --surface: #FFFFFF;
+  --surface-2: #EFEBDD;
+  --border: #E1DDCC;
+  --text: #1C2B22;
+  --text-2: #5C6B5F;
+  --text-muted: #8B9187;
+  --accent: #2E6E49;
+  --accent-dark: #1F4F34;
+  --accent-tint: #E3EEE5;
+  --warn: #B4791F;
+  --warn-tint: #FBF0DD;
+  --danger: #B23A3A;
+  --danger-tint: #FBE7E5;
+  --radius: 10px;
+}

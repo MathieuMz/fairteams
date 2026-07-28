@@ -1,0 +1,15 @@
+{
+  "name": "fairteams",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/api\" \"npm run dev -w apps/front\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:front": "npm run dev -w apps/front"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

@@ -1,0 +1,31 @@
+services:
+  # API Fastify
+  - type: web
+    name: fairteams-api
+    runtime: node
+    plan: free
+    rootDir: apps/api
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+  # Frontend Next.js (SSR via Node)
+  - type: web
+    name: fairteams-web
+    runtime: node
+    plan: free
+    rootDir: apps/front
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: fairteams-api
+          property: host
