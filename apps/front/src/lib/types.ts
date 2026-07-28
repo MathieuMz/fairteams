@@ -2,15 +2,17 @@
 
 export type Gender = 'H' | 'F'
 export type ConstraintType = 'doit' | 'veut' | 'ne_veut_pas' | 'ne_doit_pas'
-export type Criterion = 'gender' | 'beginner' | 'level' | 'friends'
+export type Criterion = 'beginner' | 'level' | 'friends'
+
+export type LevelLabel = { label: string; level: number }
 
 export type CompetitionConfig = {
   numTeams: number
   targetMen: number
   targetWomen: number
-  levelMin: number
-  levelMax: number
+  beginnerThreshold: number
   beginnerCap: number
+  levelLabels: LevelLabel[]
   priority: Criterion[]
 }
 
@@ -23,9 +25,9 @@ export type Competition = {
 export type Player = {
   id: string
   competitionId: string
-  name: string
+  firstName: string
+  lastName: string
   gender: Gender
-  declaredLevel: number
   level: number
   isCaptain: boolean
   team: number | null

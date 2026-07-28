@@ -1,6 +1,17 @@
 -- Schéma Supabase pour FairTeams
+-- Toutes les tables sont dans le schéma PostgreSQL "fairteams" (configuré dans apps/api/src/lib/supabase.ts).
 -- Un seul utilisateur pour l'instant : pas de RLS strict, juste des policies permissives.
 -- Si un jour plusieurs organisateurs partagent l'accès, ajouter l'auth Supabase et scoper les policies par user_id.
+
+-- Migration depuis l'ancienne version (à appliquer dans l'éditeur SQL Supabase) :
+--   ALTER TABLE fairteams.competitions DROP COLUMN IF EXISTS level_min;
+--   ALTER TABLE fairteams.competitions DROP COLUMN IF EXISTS level_max;
+--   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS beginner_threshold int NOT NULL DEFAULT 20 CHECK (beginner_threshold BETWEEN 1 AND 100);
+--   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS level_labels jsonb NOT NULL DEFAULT '[]';
+--   ALTER TABLE fairteams.players DROP COLUMN IF EXISTS declared_level;
+
+create schema if not exists fairteams;
+set search_path = fairteams;
 
 create table competitions (
   id uuid primary key default gen_random_uuid(),
@@ -9,20 +20,20 @@ create table competitions (
   num_teams int not null default 6,
   target_men int not null default 6,
   target_women int not null default 5,
-  level_min int not null default 1,
-  level_max int not null default 10,
+  beginner_threshold int not null default 20 check (beginner_threshold between 1 and 100),
   beginner_cap int not null default 2,
-  priority jsonb not null default '["gender","beginner","level","friends"]',
+  level_labels jsonb not null default '[]',
+  priority jsonb not null default '["beginner","level","friends"]',
   created_at timestamptz not null default now()
 );
 
 create table players (
   id uuid primary key default gen_random_uuid(),
   competition_id uuid not null references competitions(id) on delete cascade,
-  name text not null,
+  first_name text not null,
+  last_name text not null,
   gender text not null check (gender in ('H','F')),
-  declared_level int not null,
-  level int not null,
+  level int not null check (level between 1 and 100),
   is_captain boolean not null default false,
   team int, -- null = non assigné, sinon index 0-based de l'équipe
   created_at timestamptz not null default now()

@@ -45,7 +45,9 @@ export default function TabConstraints({ slug, players, constraints, onUpdated }
   }
 
   const selectStyle = { borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }
-  const options = players.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+  const options = [...players]
+    .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, 'fr'))
+    .map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)
 
   return (
     <div className="flex flex-col gap-4">
@@ -85,13 +87,23 @@ export default function TabConstraints({ slug, players, constraints, onUpdated }
           const badgeStyle = kind === 'hard'
             ? (sign > 0 ? { background: 'var(--accent-tint)', color: 'var(--accent-dark)' } : { background: 'var(--danger-tint)', color: 'var(--danger)' })
             : { background: 'var(--warn-tint)', color: 'var(--warn)' }
+
+          const bothAssigned = q1.team !== null && q2.team !== null
+          const sameTeam = bothAssigned && q1.team === q2.team
+          const wantSame = c.type === 'doit' || c.type === 'veut'
+          const satisfied = !bothAssigned ? null : (wantSame ? sameTeam : !sameTeam)
+          const statusDot = !bothAssigned ? null : satisfied
+            ? <span title="Respectée" style={{ color: 'var(--accent)' }}>✓</span>
+            : <span title="Non respectée" style={{ color: 'var(--danger)' }}>✗</span>
+
           return (
             <div key={c.id} className="flex items-center justify-between py-3 gap-3"
               style={{ borderBottom: i < constraints.length - 1 ? '1px solid var(--border)' : undefined }}>
-              <span className="text-sm">
-                {q1.name}{' '}
+              <span className="text-sm flex items-center gap-2">
+                {statusDot}
+                {q1.firstName} {q1.lastName}{' '}
                 <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-md" style={badgeStyle}>{RELATION_LABELS[c.type]}</span>
-                {' '}{q2.name}
+                {' '}{q2.firstName} {q2.lastName}
               </span>
               <button onClick={() => remove(c.id)}
                 className="rounded-lg border px-3 py-1 text-xs" style={selectStyle}>

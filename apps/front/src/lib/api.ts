@@ -16,7 +16,7 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const { headers: extraHeaders, ...rest } = init ?? {}
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
-    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+    headers: { ...(rest.body != null ? { 'Content-Type': 'application/json' } : {}), ...extraHeaders },
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
@@ -27,9 +27,9 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export type NewPlayer = {
-  name: string
+  firstName: string
+  lastName: string
   gender: Gender
-  declaredLevel: number
   level: number
   isCaptain: boolean
   team: number | null

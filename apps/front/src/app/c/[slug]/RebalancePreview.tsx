@@ -38,7 +38,7 @@ export default function RebalancePreview({ proposals, players, onConfirm, onCanc
                 <div key={p.playerId} className="flex items-center justify-between py-3 gap-3"
                   style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{player.name}</p>
+                    <p className="text-sm font-medium">{player.firstName} {player.lastName}</p>
                     <p className="text-xs" style={{ color: 'var(--text-2)' }}>{p.reason}</p>
                   </div>
                   <div className="flex items-center gap-2 text-sm font-mono" style={{ color: 'var(--text-2)' }}>

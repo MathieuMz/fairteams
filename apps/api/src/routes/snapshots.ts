@@ -16,9 +16,9 @@ export async function register(app: FastifyInstance) {
         numTeams: competition.numTeams,
         targetMen: competition.targetMen,
         targetWomen: competition.targetWomen,
-        levelMin: competition.levelMin,
-        levelMax: competition.levelMax,
+        beginnerThreshold: competition.beginnerThreshold,
         beginnerCap: competition.beginnerCap,
+        levelLabels: competition.levelLabels,
         priority: competition.priority,
       },
     })
@@ -39,9 +39,9 @@ export async function register(app: FastifyInstance) {
     await repo.deleteAllPlayersConstraintsSnapshots(competition.id)
     const updatedComp = await repo.updateCompetitionConfig(slug, snap.data.config)
     const players = await repo.bulkCreatePlayers(competition.id, snap.data.players.map(p => ({
-      name: p.name,
+      firstName: p.firstName,
+      lastName: p.lastName,
       gender: p.gender,
-      declaredLevel: p.declaredLevel,
       level: p.level,
       isCaptain: p.isCaptain,
       team: p.team,

@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
 import type { Competition, Player } from '@/lib/types'
-import { api, type NewPlayer } from '@/lib/api'
+import { api } from '@/lib/api'
 import { buildDemoPlayers } from './helpers'
 
 type Props = {
@@ -14,10 +14,11 @@ type Props = {
 }
 
 type PendingRow = {
-  name: string
+  firstName: string
+  lastName: string
   gender: 'H' | 'F'
-  declaredLevel: number
-  level: number
+  rawLabel: string
+  level: number | null  // null = étiquette inconnue
 }
 
 export default function TabImport({ slug, competition, players, onUpdated }: Props) {
@@ -31,35 +32,66 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
   const [confirmReset, setConfirmReset] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const mappable = pending.filter(r => r.level !== null)
+  const unmappable = pending.filter(r => r.level === null)
+
+  function parseCSV(text: string) {
+    const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
+    const existingIds = new Set(players.map(p => p.id))
+    const rows = parsed.data.map(r => {
+      const key = Object.fromEntries(Object.keys(r).map(k => [k.trim().toLowerCase(), r[k]]))
+      const firstName = (key.first_name || key.firstname || '').trim()
+      const lastName = (key.last_name || key.lastname || '').trim()
+      const fallbackName = (key.name || '').trim()
+      const resolvedFirst = firstName || (fallbackName ? fallbackName.split(' ')[0] : '')
+      const resolvedLast = lastName || (fallbackName ? fallbackName.split(' ').slice(1).join(' ') : '')
+      const rawLabel = (key.level || '').trim()
+      const mapped = competition.levelLabels.find(l => l.label === rawLabel)
+      return {
+        id: (key.id || '').trim(),
+        firstName: resolvedFirst,
+        lastName: resolvedLast,
+        gender: ((key.gender || '').trim().toUpperCase().startsWith('F') ? 'F' : 'H') as 'H' | 'F',
+        rawLabel,
+        level: mapped ? mapped.level : null,
+      }
+    }).filter(r => r.firstName)
+    const newRows = rows.filter(r => !r.id || !existingIds.has(r.id))
+    setTotalRead(rows.length)
+    setKnownCount(rows.length - newRows.length)
+    setPending(newRows.map(r => ({ firstName: r.firstName, lastName: r.lastName, gender: r.gender, rawLabel: r.rawLabel, level: r.level })))
+  }
+
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    // Essai UTF-8, puis relecture en Latin-1 si des caractères de remplacement (U+FFFD) sont détectés
     const reader = new FileReader()
     reader.onload = (ev) => {
-      const parsed = Papa.parse<Record<string, string>>(ev.target!.result as string, { header: true, skipEmptyLines: true })
-      const existingIds = new Set(players.map(p => p.id))
-      const rows = parsed.data.map(r => {
-        const key = Object.fromEntries(Object.keys(r).map(k => [k.trim().toLowerCase(), r[k]]))
-        return {
-          id: (key.id || '').trim(),
-          name: (key.name || '').trim(),
-          gender: ((key.gender || '').trim().toUpperCase().startsWith('F') ? 'F' : 'H') as 'H' | 'F',
-          declaredLevel: parseInt(key.level) || 0,
-          level: parseInt(key.level) || 0,
-        }
-      }).filter(r => r.name)
-      const newRows = rows.filter(r => !r.id || !existingIds.has(r.id))
-      setTotalRead(rows.length)
-      setKnownCount(rows.length - newRows.length)
-      setPending(newRows.map(r => ({ name: r.name, gender: r.gender, declaredLevel: r.declaredLevel, level: r.level })))
+      const text = ev.target!.result as string
+      if (text.includes('�')) {
+        const reader2 = new FileReader()
+        reader2.onload = (ev2) => parseCSV(ev2.target!.result as string)
+        reader2.readAsText(file, 'ISO-8859-1')
+      } else {
+        parseCSV(text)
+      }
     }
     reader.readAsText(file)
   }
 
   async function confirmImport() {
+    if (!mappable.length) return
     setImporting(true)
     try {
-      await api.addPlayers(slug, pending.map(r => ({ ...r, isCaptain: false, team: null })))
+      await api.addPlayers(slug, mappable.map(r => ({
+        firstName: r.firstName,
+        lastName: r.lastName,
+        gender: r.gender,
+        level: r.level!,
+        isCaptain: false,
+        team: null,
+      })))
       setPending([])
       setTotalRead(0)
       setKnownCount(0)
@@ -88,7 +120,6 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
     try {
       const demo = buildDemoPlayers(players.length, 68)
       const created = await api.addPlayers(slug, demo)
-      // Assigner des capitaines : le joueur le plus haut niveau de chaque équipe
       const byTeam: Record<number, typeof created[0]> = {}
       created.forEach(p => {
         if (p.team === null) return
@@ -109,6 +140,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
 
   const cardStyle = { background: 'var(--surface)', borderColor: 'var(--border)' }
   const inputStyle = { borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }
+  const noMapping = competition.levelLabels.length === 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -141,11 +173,27 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
       {/* CSV import */}
       <div className="rounded-xl border p-5" style={cardStyle}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Importer un fichier CSV</p>
-        <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>Colonnes attendues : <code className="font-mono text-xs">id, name, gender (H/F), level</code></p>
-        <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="text-sm" />
+        <p className="text-sm mb-1" style={{ color: 'var(--text-2)' }}>
+          Colonnes attendues : <code className="font-mono text-xs">id, first_name, last_name, gender (H/F), level</code>
+        </p>
+        <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+          La colonne <code className="font-mono">level</code> doit contenir des étiquettes configurées dans l&apos;onglet Configuration
+          ({competition.levelLabels.length > 0
+            ? competition.levelLabels.map(l => `${l.label}→${l.level}`).join(', ')
+            : 'aucune correspondance définie'}).
+        </p>
+
+        {noMapping && (
+          <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--warn-tint)', color: 'var(--warn)' }}>
+            Aucune correspondance de niveau n&apos;est configurée. Allez dans l&apos;onglet <strong>Configuration</strong> pour en ajouter avant d&apos;importer.
+          </div>
+        )}
+
+        <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="text-sm" disabled={noMapping} />
+
         {totalRead > 0 && (
           <div className="mt-4">
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-4 gap-3 mb-3">
               <div className="rounded-lg border p-3 text-center" style={cardStyle}>
                 <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Lignes lues</p>
                 <p className="text-xl font-semibold">{totalRead}</p>
@@ -155,29 +203,42 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
                 <p className="text-xl font-semibold">{knownCount}</p>
               </div>
               <div className="rounded-lg border p-3 text-center" style={{ background: 'var(--warn-tint)', borderColor: 'var(--border)' }}>
-                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Nouvelles</p>
-                <p className="text-xl font-semibold">{pending.length}</p>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>À importer</p>
+                <p className="text-xl font-semibold">{mappable.length}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center" style={{ background: 'var(--danger-tint)', borderColor: 'var(--border)' }}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Ignorées</p>
+                <p className="text-xl font-semibold">{unmappable.length}</p>
               </div>
             </div>
-            {pending.length > 0 && (
+
+            {unmappable.length > 0 && (
+              <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--danger-tint)', color: 'var(--danger)' }}>
+                {unmappable.length} ligne{unmappable.length > 1 ? 's' : ''} ignorée{unmappable.length > 1 ? 's' : ''} — étiquette inconnue :{' '}
+                {[...new Set(unmappable.map(r => `« ${r.rawLabel} »`))].join(', ')}.
+                Ajoutez ces correspondances dans la Configuration.
+              </div>
+            )}
+
+            {mappable.length > 0 && (
               <>
-                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>Le niveau déclaré est modifiable avant l&apos;ajout.</p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
-                    <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      <th className="text-left p-2">Nom</th><th className="text-left p-2">Sexe</th>
-                      <th className="text-left p-2">Niv. déclaré</th><th className="text-left p-2">Niv. ajusté</th>
-                    </tr></thead>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-left p-2">Nom</th>
+                        <th className="text-left p-2">Sexe</th>
+                        <th className="text-left p-2">Étiquette CSV</th>
+                        <th className="text-left p-2">Niveau (1–100)</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {pending.map((r, i) => (
+                      {mappable.map((r, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td className="p-2">{r.name}</td>
+                          <td className="p-2">{r.firstName} {r.lastName}</td>
                           <td className="p-2">{r.gender}</td>
-                          <td className="p-2 font-mono">{r.declaredLevel}</td>
-                          <td className="p-2">
-                            <input type="number" step={1} value={r.level} className="w-14 rounded border px-1 py-0.5 font-mono" style={inputStyle}
-                              onChange={e => setPending(prev => prev.map((x, j) => j === i ? { ...x, level: parseInt(e.target.value) || 0 } : x))} />
-                          </td>
+                          <td className="p-2 font-mono">{r.rawLabel}</td>
+                          <td className="p-2 font-mono">{r.level}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -187,7 +248,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
                   <button onClick={confirmImport} disabled={importing}
                     className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
                     style={{ background: 'var(--accent)' }}>
-                    {importing ? 'Ajout…' : `Ajouter et placer les ${pending.length} nouveaux joueurs`}
+                    {importing ? 'Ajout…' : `Ajouter et placer les ${mappable.length} joueurs`}
                   </button>
                 </div>
               </>
