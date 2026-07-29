@@ -68,7 +68,7 @@ apps/front/src/
   app/c/[slug]/competition-app.tsx  Main client component, tab state, rebalance flow
   app/c/[slug]/helpers.ts      Labels, isBeginner, computeTeamStats (display), demo data
   app/c/[slug]/TabTeams.tsx    Team grid cards
-  app/c/[slug]/TabConfig.tsx   Config form + priority reordering
+  app/c/[slug]/TabConfig.tsx   Config form + criteria weight sliders
   app/c/[slug]/TabImport.tsx   CSV import (papaparse) + demo loaders + reset
   app/c/[slug]/TabRoster.tsx   Manual player editing
   app/c/[slug]/TabConstraints.tsx  Constraint CRUD

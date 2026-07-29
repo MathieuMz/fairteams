@@ -19,7 +19,7 @@ export async function register(app: FastifyInstance) {
         beginnerThreshold: competition.beginnerThreshold,
         beginnerCap: competition.beginnerCap,
         levelLabels: competition.levelLabels,
-        priority: competition.priority,
+        weights: competition.weights,
       },
     })
     return reply.status(201).send(snapshot)

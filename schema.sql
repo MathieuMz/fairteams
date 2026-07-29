@@ -9,6 +9,8 @@
 --   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS beginner_threshold int NOT NULL DEFAULT 20 CHECK (beginner_threshold BETWEEN 1 AND 100);
 --   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS level_labels jsonb NOT NULL DEFAULT '[]';
 --   ALTER TABLE fairteams.players DROP COLUMN IF EXISTS declared_level;
+--   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS weights jsonb NOT NULL DEFAULT '{"beginner":5,"level":5,"friends":5}';
+--   ALTER TABLE fairteams.competitions DROP COLUMN IF EXISTS priority;
 
 create schema if not exists fairteams;
 set search_path = fairteams;
@@ -23,7 +25,7 @@ create table competitions (
   beginner_threshold int not null default 20 check (beginner_threshold between 1 and 100),
   beginner_cap int not null default 2,
   level_labels jsonb not null default '[]',
-  priority jsonb not null default '["beginner","level","friends"]',
+  weights jsonb not null default '{"beginner":5,"level":5,"friends":5}',
   created_at timestamptz not null default now()
 );
 

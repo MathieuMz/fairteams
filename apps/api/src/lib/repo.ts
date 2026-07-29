@@ -25,7 +25,7 @@ function toComp(row: Record<string, unknown>): Competition {
     beginnerThreshold: row.beginner_threshold as number,
     beginnerCap: row.beginner_cap as number,
     levelLabels: row.level_labels as LevelLabel[],
-    priority: row.priority as Criterion[],
+    weights: row.weights as Record<Criterion, number>,
   };
 }
 
@@ -71,7 +71,7 @@ function defaultConfig(): Omit<CompetitionConfig, never> {
     beginnerThreshold: 20,
     beginnerCap: 2,
     levelLabels: [],
-    priority: ["beginner", "level", "friends"],
+    weights: { beginner: 5, level: 5, friends: 5 },
   };
 }
 
@@ -94,7 +94,7 @@ export async function createCompetition(
       beginner_threshold: merged.beginnerThreshold,
       beginner_cap: merged.beginnerCap,
       level_labels: merged.levelLabels,
-      priority: merged.priority,
+      weights: merged.weights,
     })
     .select()
     .single();
@@ -127,7 +127,7 @@ export async function updateCompetitionConfig(
       beginner_threshold: cfg.beginnerThreshold,
       beginner_cap: cfg.beginnerCap,
       level_labels: cfg.levelLabels,
-      priority: cfg.priority,
+      weights: cfg.weights,
     })
     .eq("slug", slug)
     .select()

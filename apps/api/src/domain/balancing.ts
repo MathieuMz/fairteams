@@ -2,8 +2,29 @@ import type {
   Player,
   CompetitionConfig,
   Constraint,
+  Criterion,
   RebalanceProposal,
 } from "./types";
+
+// Ordre fixe utilisé pour départager les critères à poids égal.
+const CRITERIA_ORDER: Criterion[] = ["friends", "beginner", "level"];
+
+// Écart de niveau moyen (sur 100) toléré entre équipes avant d'arrêter le
+// rééquilibrage : plus le poids est élevé, plus la tolérance est resserrée
+// (rééquilibrage plus agressif). Poids 5 (défaut) ≈ tolérance historique de 5.
+function levelToleranceForWeight(weight: number): number {
+  const w = Math.min(10, Math.max(1, weight));
+  return Math.max(1, 11 - w);
+}
+
+// Combien de points d'écart de niveau moyen (levelSpread) on accepte de
+// sacrifier pour satisfaire une préférence "friends" : plus le poids est
+// élevé, plus on est prêt à déséquilibrer le niveau pour honorer la
+// contrainte.
+function friendsLevelBudget(weight: number): number {
+  const w = Math.min(10, Math.max(1, weight));
+  return w * 1.5;
+}
 
 const RELATION_TYPES = {
   doit: { kind: "hard" as const, sign: 1 },
@@ -211,10 +232,7 @@ export function computeImbalanceScore(
   cfg: CompetitionConfig,
   constraints: Constraint[],
 ): number {
-  const weights: Record<string, number> = {};
-  cfg.priority.forEach((crit, idx) => {
-    weights[crit] = cfg.priority.length - idx;
-  });
+  const weights = cfg.weights;
 
   const teamStats = Array.from({ length: cfg.numTeams }, (_, t) =>
     computeTeamStats(t, cfg, players),
@@ -386,10 +404,15 @@ export function generateRebalanceProposals(
     push(candidateF.id, tF, tH, "Rééquilibrage hommes / femmes");
   }
 
-  // ── Phase 3 : critères configurables dans l'ordre de priorité ──────────────
+  // ── Phase 3 : critères configurables, du poids le plus élevé au plus faible ──
   // Uniquement via échanges de même genre → préserve taille et ratio H/F.
+  // Un poids à 0 désactive complètement le rééquilibrage pour ce critère.
 
-  for (const criterion of cfg.priority) {
+  const orderedCriteria = CRITERIA_ORDER
+    .filter((c) => (cfg.weights[c] ?? 0) > 0)
+    .sort((a, b) => (cfg.weights[b] ?? 0) - (cfg.weights[a] ?? 0));
+
+  for (const criterion of orderedCriteria) {
 
     // ── friends : préférences souples (veut / ne_veut_pas) ──────────────────
     if (criterion === "friends") {
@@ -408,25 +431,45 @@ export function generateRebalanceProposals(
               : null;
           if (!mover) return;
           const target = mover === p1 ? p2 : p1;
-          // Find a same-gender partner on target's team
-          const partner = st(target.team!).members.find(
+          const candidates = st(target.team!).members.filter(
             (p) =>
               p.id !== target.id &&
               p.gender === mover.gender &&
               canMovePlayer(p, working, constraints),
           );
-          if (!partner) return;
-          const moverOrig = mover.team!;
-          const partnerOrig = partner.team!;
-          const before = softRelationViolations(working, constraints);
-          mover.team = partnerOrig;
-          partner.team = moverOrig;
-          if (softRelationViolations(working, constraints) < before) {
-            push(mover.id, moverOrig, partnerOrig, `Préférence : veut jouer avec ${target.firstName} ${target.lastName}`);
-            push(partner.id, partnerOrig, moverOrig, "Échange pour préférence joueur");
-          } else {
+          if (!candidates.length) return;
+
+          // Parmi les partenaires possibles, choisir celui qui coûte le moins
+          // cher en écart de niveau, et ne l'appliquer que si ce coût reste
+          // sous le budget autorisé par le poids "friends".
+          const beforeViolations = softRelationViolations(working, constraints);
+          const beforeSpread = levelSpread(working, cfg.numTeams);
+          const budget = friendsLevelBudget(cfg.weights.friends ?? 5);
+
+          let bestPartner: Player | null = null;
+          let bestSpreadDelta = Infinity;
+          for (const partner of candidates) {
+            const moverOrig = mover.team!;
+            const partnerOrig = partner.team!;
+            mover.team = partnerOrig;
+            partner.team = moverOrig;
+            const violationsOk = softRelationViolations(working, constraints) < beforeViolations;
+            const spreadDelta = levelSpread(working, cfg.numTeams) - beforeSpread;
+            if (violationsOk && spreadDelta < bestSpreadDelta) {
+              bestSpreadDelta = spreadDelta;
+              bestPartner = partner;
+            }
             mover.team = moverOrig;
             partner.team = partnerOrig;
+          }
+
+          if (bestPartner && bestSpreadDelta <= budget) {
+            const moverOrig = mover.team!;
+            const partnerOrig = bestPartner.team!;
+            mover.team = partnerOrig;
+            bestPartner.team = moverOrig;
+            push(mover.id, moverOrig, partnerOrig, `Préférence : veut jouer avec ${target.firstName} ${target.lastName}`);
+            push(bestPartner.id, partnerOrig, moverOrig, "Échange pour préférence joueur");
           }
         }
 
@@ -439,9 +482,15 @@ export function generateRebalanceProposals(
           if (!mover) return;
           const other = mover === p1 ? p2 : p1;
 
-          // Find the best same-gender swap on another team that reduces violations
+          // Parmi les swaps qui réduisent les violations, choisir celui qui
+          // coûte le moins cher en écart de niveau, et ne l'appliquer que si
+          // ce coût reste sous le budget autorisé par le poids "friends".
+          const beforeViolations = softRelationViolations(working, constraints);
+          const beforeSpread = levelSpread(working, cfg.numTeams);
+          const budget = friendsLevelBudget(cfg.weights.friends ?? 5);
+
           let bestPartner: Player | null = null;
-          let bestViolations = softRelationViolations(working, constraints);
+          let bestSpreadDelta = Infinity;
 
           for (let t2 = 0; t2 < cfg.numTeams; t2++) {
             if (t2 === mover.team) continue;
@@ -455,9 +504,10 @@ export function generateRebalanceProposals(
               const partnerOrig = partner.team!;
               mover.team = partnerOrig;
               partner.team = moverOrig;
-              const v = softRelationViolations(working, constraints);
-              if (v < bestViolations) {
-                bestViolations = v;
+              const violationsOk = softRelationViolations(working, constraints) < beforeViolations;
+              const spreadDelta = levelSpread(working, cfg.numTeams) - beforeSpread;
+              if (violationsOk && spreadDelta < bestSpreadDelta) {
+                bestSpreadDelta = spreadDelta;
                 bestPartner = partner;
               }
               mover.team = moverOrig;
@@ -465,7 +515,7 @@ export function generateRebalanceProposals(
             }
           }
 
-          if (bestPartner) {
+          if (bestPartner && bestSpreadDelta <= budget) {
             const moverOrig = mover.team!;
             const partnerOrig = bestPartner.team!;
             mover.team = partnerOrig;
@@ -537,14 +587,14 @@ export function generateRebalanceProposals(
 
     // ── level : équilibre du niveau moyen (échange même genre) ──────────────
     if (criterion === "level") {
+      const tolerance = levelToleranceForWeight(cfg.weights.level ?? 5);
       let levelIter = 0;
       while (levelIter < 50) {
         levelIter++;
         const avgs = Array.from({ length: cfg.numTeams }, (_, t) => st(t).avg);
         const maxT = avgs.indexOf(Math.max(...avgs));
         const minT = avgs.indexOf(Math.min(...avgs));
-        // On 1-100 scale, < 5 points is close enough
-        if (avgs[maxT] - avgs[minT] < 5) break;
+        if (avgs[maxT] - avgs[minT] < tolerance) break;
 
         const highMembers = st(maxT).members.filter((p) =>
           canMovePlayer(p, working, constraints),

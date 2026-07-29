@@ -19,9 +19,13 @@ export default function TabRoster({ players, competition, onUpdated }: Props) {
 
   const dirty = Object.keys(patches).length > 0;
 
-  const filtered = players.filter((p) =>
-    `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
-  );
+  const filtered = players
+    .filter((p) =>
+      `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
+    )
+    .sort((a, b) =>
+      `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, "fr"),
+    );
 
   function patch(id: string, update: Patch) {
     setPatches((prev) => ({ ...prev, [id]: { ...prev[id], ...update } }));

@@ -13,7 +13,7 @@ export type CompetitionConfig = {
   beginnerThreshold: number
   beginnerCap: number
   levelLabels: LevelLabel[]
-  priority: Criterion[]
+  weights: Record<Criterion, number>
 }
 
 export type Competition = {

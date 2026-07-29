@@ -6,7 +6,7 @@ export const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!,
   {
     db: {
-      schema: "fairteams",
+      schema: process.env.SUPABASE_SCHEMA,
     },
   },
 );

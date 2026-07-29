@@ -5,6 +5,8 @@ import type { Competition, CompetitionConfig, Criterion, LevelLabel } from '@/li
 import { CRITERIA_LABELS } from './helpers'
 import { api } from '@/lib/api'
 
+const CRITERIA_DISPLAY_ORDER: Criterion[] = ['friends', 'beginner', 'level']
+
 type Props = {
   competition: Competition
   onUpdated: () => void
@@ -18,19 +20,15 @@ export default function TabConfig({ competition, onUpdated }: Props) {
     beginnerThreshold: competition.beginnerThreshold,
     beginnerCap: competition.beginnerCap,
     levelLabels: competition.levelLabels.map(l => ({ ...l })),
-    priority: [...competition.priority],
+    weights: { ...competition.weights },
   })
   const [saving, setSaving] = useState(false)
   const [labelError, setLabelError] = useState<string | null>(null)
 
   function n(val: string, fallback = 0) { return parseInt(val) || fallback }
 
-  function movePriority(idx: number, dir: -1 | 1) {
-    const j = idx + dir
-    if (j < 0 || j >= cfg.priority.length) return
-    const arr = [...cfg.priority]
-    ;[arr[idx], arr[j]] = [arr[j], arr[idx]]
-    setCfg(c => ({ ...c, priority: arr }))
+  function updateWeight(crit: Criterion, value: number) {
+    setCfg(c => ({ ...c, weights: { ...c.weights, [crit]: value } }))
   }
 
   function addLabel() {
@@ -168,15 +166,17 @@ export default function TabConfig({ competition, onUpdated }: Props) {
       </div>
 
       <div className="rounded-xl border p-5" style={style}>
-        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Priorité des critères</p>
-        {cfg.priority.map((crit, idx) => (
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Poids des critères</p>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-2)' }}>
+          0 = ignoré, 10 = priorité maximale. Un poids plus élevé rapproche davantage ce critère de son objectif, au besoin au détriment des autres.
+        </p>
+        {CRITERIA_DISPLAY_ORDER.map((crit) => (
           <div key={crit} className="flex items-center gap-3 p-3 rounded-lg border mb-2" style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}>
-            <span className="text-xs font-mono w-4" style={{ color: 'var(--text-muted)' }}>{idx + 1}</span>
             <span className="flex-1 text-sm">{CRITERIA_LABELS[crit]}</span>
-            <button onClick={() => movePriority(idx, -1)} disabled={idx === 0}
-              className="w-7 h-7 rounded border text-sm disabled:opacity-30" style={{ borderColor: 'var(--border)' }}>↑</button>
-            <button onClick={() => movePriority(idx, 1)} disabled={idx === cfg.priority.length - 1}
-              className="w-7 h-7 rounded border text-sm disabled:opacity-30" style={{ borderColor: 'var(--border)' }}>↓</button>
+            <input type="range" min={0} max={10} step={1} value={cfg.weights[crit] ?? 0}
+              onChange={e => updateWeight(crit, n(e.target.value))}
+              className="w-32" />
+            <span className="text-xs font-mono w-4 text-right" style={{ color: 'var(--text-muted)' }}>{cfg.weights[crit] ?? 0}</span>
           </div>
         ))}
       </div>
