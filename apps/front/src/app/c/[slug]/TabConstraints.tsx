@@ -35,6 +35,11 @@ export default function TabConstraints({ slug, players, constraints, onUpdated }
     onUpdated()
   }
 
+  async function changeType(id: string, newType: ConstraintType) {
+    await api.updateConstraint(id, newType)
+    onUpdated()
+  }
+
   if (players.length < 2) {
     return (
       <div className="text-center py-16" style={{ color: 'var(--text-2)' }}>
@@ -99,11 +104,20 @@ export default function TabConstraints({ slug, players, constraints, onUpdated }
           return (
             <div key={c.id} className="flex items-center justify-between py-3 gap-3"
               style={{ borderBottom: i < constraints.length - 1 ? '1px solid var(--border)' : undefined }}>
-              <span className="text-sm flex items-center gap-2">
+              <span className="text-sm flex items-center gap-2 flex-wrap">
                 {statusDot}
-                {q1.firstName} {q1.lastName}{' '}
-                <span className="inline-block text-xs font-medium px-2 py-0.5 rounded-md" style={badgeStyle}>{RELATION_LABELS[c.type]}</span>
-                {' '}{q2.firstName} {q2.lastName}
+                {q1.firstName} {q1.lastName}
+                <select
+                  value={c.type}
+                  onChange={e => changeType(c.id, e.target.value as ConstraintType)}
+                  className="inline-block text-xs font-medium px-2 py-0.5 rounded-md border-0 outline-none"
+                  style={badgeStyle}
+                >
+                  {(Object.entries(RELATION_LABELS) as [ConstraintType, string][]).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+                {q2.firstName} {q2.lastName}
               </span>
               <button onClick={() => remove(c.id)}
                 className="rounded-lg border px-3 py-1 text-xs" style={selectStyle}>

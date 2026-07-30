@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Papa from 'papaparse'
-import type { Competition, Player } from '@/lib/types'
+import type { Competition, LevelLabel, Player } from '@/lib/types'
 import { api } from '@/lib/api'
 import { buildDemoPlayers } from './helpers'
 
@@ -30,6 +30,9 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
   const [loadingFullDemo, setLoadingFullDemo] = useState(false)
   const [confirmFullDemo, setConfirmFullDemo] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [levelLabels, setLevelLabels] = useState<LevelLabel[]>(competition.levelLabels.map(l => ({ ...l })))
+  const [labelError, setLabelError] = useState<string | null>(null)
+  const [savingLabels, setSavingLabels] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const mappable = pending.filter(r => r.level !== null)
@@ -138,6 +141,51 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
     onUpdated()
   }
 
+  function addLabel() {
+    setLevelLabels(ls => [...ls, { label: '', level: 50 }])
+  }
+
+  function updateLabel(idx: number, patch: Partial<LevelLabel>) {
+    setLevelLabels(ls => ls.map((l, i) => i === idx ? { ...l, ...patch } : l))
+  }
+
+  function removeLabel(idx: number) {
+    setLevelLabels(ls => ls.filter((_, i) => i !== idx))
+  }
+
+  function validateLabels(): string | null {
+    const labels = levelLabels.map(l => l.label.trim())
+    if (labels.some(l => !l)) return 'Chaque correspondance doit avoir une étiquette non vide.'
+    const seen = new Set<string>()
+    for (const l of labels) {
+      if (seen.has(l)) return `L'étiquette « ${l} » est définie plusieurs fois.`
+      seen.add(l)
+    }
+    if (levelLabels.some(l => l.level < 1 || l.level > 100)) return 'Les niveaux doivent être entre 1 et 100.'
+    return null
+  }
+
+  async function saveLabels() {
+    const err = validateLabels()
+    if (err) { setLabelError(err); return }
+    setLabelError(null)
+    setSavingLabels(true)
+    try {
+      await api.updateConfig(slug, {
+        numTeams: competition.numTeams,
+        targetMen: competition.targetMen,
+        targetWomen: competition.targetWomen,
+        beginnerThreshold: competition.beginnerThreshold,
+        beginnerCap: competition.beginnerCap,
+        weights: competition.weights,
+        levelLabels: levelLabels.map(l => ({ ...l, label: l.label.trim() })),
+      })
+      onUpdated()
+    } finally {
+      setSavingLabels(false)
+    }
+  }
+
   const cardStyle = { background: 'var(--surface)', borderColor: 'var(--border)' }
   const inputStyle = { borderColor: 'var(--border)', background: 'var(--surface)', color: 'var(--text)' }
   const noMapping = competition.levelLabels.length === 0
@@ -161,7 +209,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
         <div className="fixed inset-0 flex items-center justify-center z-50" style={{ background: 'rgba(28,43,34,0.45)' }}>
           <div className="rounded-xl p-6 max-w-sm w-[90%]" style={{ background: 'var(--surface)' }}>
             <h3 className="font-semibold mb-2">Réinitialiser toutes les données ?</h3>
-            <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>Tous les joueurs ({players.length}), contraintes et snapshots seront effacés définitivement. La configuration est conservée.</p>
+            <p className="text-sm mb-5" style={{ color: 'var(--text-2)' }}>Tous les joueurs ({players.length}) et contraintes seront effacés définitivement. La configuration est conservée.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setConfirmReset(false)} className="rounded-lg border px-4 py-2 text-sm" style={inputStyle}>Annuler</button>
               <button onClick={resetData} className="rounded-lg px-4 py-2 text-sm text-white" style={{ background: 'var(--danger)' }}>Réinitialiser quand même</button>
@@ -170,6 +218,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
         </div>
       )}
 
+
       {/* CSV import */}
       <div className="rounded-xl border p-5" style={cardStyle}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Importer un fichier CSV</p>
@@ -177,7 +226,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
           Colonnes attendues : <code className="font-mono text-xs">id, first_name, last_name, gender (H/F), level</code>
         </p>
         <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-          La colonne <code className="font-mono">level</code> doit contenir des étiquettes configurées dans l&apos;onglet Configuration
+          La colonne <code className="font-mono">level</code> doit contenir des étiquettes correspondant au tableau ci-dessus
           ({competition.levelLabels.length > 0
             ? competition.levelLabels.map(l => `${l.label}→${l.level}`).join(', ')
             : 'aucune correspondance définie'}).
@@ -185,7 +234,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
 
         {noMapping && (
           <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--warn-tint)', color: 'var(--warn)' }}>
-            Aucune correspondance de niveau n&apos;est configurée. Allez dans l&apos;onglet <strong>Configuration</strong> pour en ajouter avant d&apos;importer.
+            Aucune correspondance de niveau n&apos;est configurée. Ajoutez-en une ci-dessus avant d&apos;importer.
           </div>
         )}
 
@@ -216,7 +265,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
               <div className="rounded-lg p-3 mb-3 text-sm" style={{ background: 'var(--danger-tint)', color: 'var(--danger)' }}>
                 {unmappable.length} ligne{unmappable.length > 1 ? 's' : ''} ignorée{unmappable.length > 1 ? 's' : ''} — étiquette inconnue :{' '}
                 {[...new Set(unmappable.map(r => `« ${r.rawLabel} »`))].join(', ')}.
-                Ajoutez ces correspondances dans la Configuration.
+                Ajoutez ces correspondances ci-dessus.
               </div>
             )}
 
@@ -257,19 +306,65 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
         )}
       </div>
 
-      {/* Ajouter 5 demo */}
+      {/* Correspondances CSV -> niveau */}
       <div className="rounded-xl border p-5" style={cardStyle}>
-        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Ajouter des joueurs</p>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Correspondances CSV → niveau (1–100)</p>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-2)' }}>
+          Associe chaque étiquette attendue dans la colonne <code className="font-mono text-xs">level</code> du CSV à un niveau numérique.
+        </p>
+        {levelLabels.length === 0 && (
+          <p className="text-sm mb-3" style={{ color: 'var(--text-muted)' }}>Aucune correspondance définie. L&apos;import CSV sera bloqué tant que la liste est vide.</p>
+        )}
+        {levelLabels.map((l, idx) => (
+          <div key={idx} className="flex items-center gap-2 mb-2">
+            <input
+              type="text"
+              placeholder="Étiquette CSV (ex : A)"
+              value={l.label}
+              onChange={e => updateLabel(idx, { label: e.target.value })}
+              className="rounded-lg border px-3 py-1.5 text-sm flex-1 outline-none"
+              style={inputStyle}
+            />
+            <span className="text-sm" style={{ color: 'var(--text-2)' }}>→</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={l.level}
+              onChange={e => updateLabel(idx, { level: parseInt(e.target.value) || 1 })}
+              className="rounded-lg border px-3 py-1.5 text-sm w-20 outline-none font-mono"
+              style={inputStyle}
+            />
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>/100</span>
+            <button onClick={() => removeLabel(idx)}
+              className="w-7 h-7 rounded border text-sm flex items-center justify-center"
+              style={{ borderColor: 'var(--border)', color: 'var(--danger)' }}>×</button>
+          </div>
+        ))}
+        <div className="flex items-center justify-between mt-1">
+          <button onClick={addLabel}
+            className="rounded-lg border px-3 py-1.5 text-sm"
+            style={{ borderColor: 'var(--border)', color: 'var(--accent-dark)' }}>
+            + Ajouter une correspondance
+          </button>
+          <button onClick={saveLabels} disabled={savingLabels}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            style={{ background: 'var(--accent)' }}>
+            {savingLabels ? 'Enregistrement…' : 'Enregistrer les correspondances'}
+          </button>
+        </div>
+        {labelError && (
+          <p className="mt-2 text-sm" style={{ color: 'var(--danger)' }}>{labelError}</p>
+        )}
+      </div>
+      {/* Joueurs de démo */}
+      <div className="rounded-xl border p-5" style={cardStyle}>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Joueurs de démo</p>
         <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>Ajoute 5 joueurs fictifs — utile pour simuler des inscriptions tardives.</p>
         <button onClick={addDemoPlayers} disabled={addingDemo}
-          className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50" style={inputStyle}>
+          className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50 mb-4" style={inputStyle}>
           {addingDemo ? 'Ajout…' : 'Ajouter 5 joueurs de démo'}
         </button>
-      </div>
-
-      {/* Charger 68 demo */}
-      <div className="rounded-xl border p-5" style={cardStyle}>
-        <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Données fictives</p>
         <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>Génère ~68 joueurs fictifs avec un capitaine par équipe, déjà placés par l&apos;algorithme.</p>
         <button onClick={loadFullDemo} disabled={loadingFullDemo}
           className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50" style={inputStyle}>
@@ -280,7 +375,7 @@ export default function TabImport({ slug, competition, players, onUpdated }: Pro
       {/* Reset */}
       <div className="rounded-xl border p-5" style={{ background: 'var(--surface)', borderColor: 'var(--danger)' }}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--danger)' }}>Zone de réinitialisation</p>
-        <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>Efface tous les joueurs, contraintes et snapshots. La configuration est conservée.</p>
+        <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>Efface tous les joueurs et contraintes. La configuration est conservée.</p>
         <button onClick={() => setConfirmReset(true)}
           className="rounded-lg px-4 py-2 text-sm text-white" style={{ background: 'var(--danger)' }}>
           Réinitialiser toutes les données

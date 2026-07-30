@@ -38,12 +38,12 @@ export async function register(app: FastifyInstance) {
     return updated
   })
 
-  // POST /competitions/:slug/reset  — efface joueurs + contraintes + snapshots
+  // POST /competitions/:slug/reset  — efface joueurs + contraintes
   app.post('/competitions/:slug/reset', async (req, reply) => {
     const { slug } = req.params as { slug: string }
     const competition = await repo.getCompetitionBySlug(slug)
     if (!competition) return reply.status(404).send({ error: 'competition not found' })
-    await repo.deleteAllPlayersConstraintsSnapshots(competition.id)
+    await repo.deleteAllPlayersAndConstraints(competition.id)
     return reply.status(204).send()
   })
 }

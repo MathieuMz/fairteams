@@ -8,18 +8,16 @@ import TabConfig from './TabConfig'
 import TabImport from './TabImport'
 import TabRoster from './TabRoster'
 import TabConstraints from './TabConstraints'
-import TabSnapshots from './TabSnapshots'
 import RebalancePreview from './RebalancePreview'
 
-type Tab = 'teams' | 'config' | 'import' | 'roster' | 'constraints' | 'snapshots'
+type Tab = 'teams' | 'config' | 'import' | 'roster' | 'constraints'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'teams', label: 'Équipes' },
-  { id: 'config', label: 'Configuration' },
-  { id: 'import', label: 'Import CSV' },
   { id: 'roster', label: 'Effectifs' },
   { id: 'constraints', label: 'Contraintes' },
-  { id: 'snapshots', label: 'Snapshots' },
+  { id: 'config', label: 'Configuration' },
+  { id: 'import', label: 'Import CSV' },
 ]
 
 type Props = {
@@ -34,7 +32,7 @@ export default function CompetitionApp({ slug, initialData }: Props) {
   const [rebalanceLoading, setRebalanceLoading] = useState(false)
   const [confirming, setConfirming] = useState(false)
 
-  const { competition, players, constraints, snapshots } = data
+  const { competition, players, constraints } = data
 
   const refresh = useCallback(async () => {
     const fresh = await api.getCompetition(slug)
@@ -137,18 +135,12 @@ export default function CompetitionApp({ slug, initialData }: Props) {
           competition={competition}
           onUpdated={handleUpdated}
         />
-      ) : activeTab === 'constraints' ? (
+      ) : (
         <TabConstraints
           slug={slug}
           players={players}
           constraints={constraints}
           onUpdated={handleUpdated}
-        />
-      ) : (
-        <TabSnapshots
-          slug={slug}
-          snapshots={snapshots}
-          onUpdated={handleUpdatedAndSwitchTeams}
         />
       )}
 

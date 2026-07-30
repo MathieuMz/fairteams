@@ -6,7 +6,6 @@ import type {
   Constraint,
   ConstraintType,
   Gender,
-  Snapshot,
   RebalanceProposal,
 } from './types'
 
@@ -63,14 +62,11 @@ export const api = {
   addConstraint: (slug: string, c: NewConstraint) =>
     json<Constraint>(`/competitions/${slug}/constraints`, { method: 'POST', body: JSON.stringify(c) }),
 
+  updateConstraint: (id: string, type: ConstraintType) =>
+    json<Constraint>(`/constraints/${id}`, { method: 'PATCH', body: JSON.stringify({ type }) }),
+
   deleteConstraint: (id: string) =>
     json<void>(`/constraints/${id}`, { method: 'DELETE' }),
-
-  createSnapshot: (slug: string, label: string) =>
-    json<Snapshot>(`/competitions/${slug}/snapshots`, { method: 'POST', body: JSON.stringify({ label }) }),
-
-  restoreSnapshot: (slug: string, id: string) =>
-    json<{ competition: Competition; players: Player[] }>(`/competitions/${slug}/snapshots/${id}/restore`, { method: 'POST' }),
 
   rebalanceProposals: (slug: string) =>
     json<RebalanceProposal[]>(`/competitions/${slug}/rebalance-proposals`, { method: 'POST' }),

@@ -5,7 +5,6 @@ import type {
   CompetitionConfig,
   Player,
   Constraint,
-  Snapshot,
   Gender,
   ConstraintType,
   Criterion,
@@ -49,17 +48,6 @@ function toConstraint(row: Record<string, unknown>): Constraint {
     player1Id: row.player1_id as string,
     player2Id: row.player2_id as string,
     type: row.type as ConstraintType,
-  };
-}
-
-function toSnapshot(row: Record<string, unknown>): Snapshot {
-  return {
-    id: row.id as string,
-    competitionId: row.competition_id as string,
-    label: row.label as string,
-    playerCount: row.player_count as number,
-    createdAt: row.created_at as string,
-    data: row.data as Snapshot["data"],
   };
 }
 
@@ -188,25 +176,20 @@ export async function updatePlayer(
   return toPlayer(data);
 }
 
-export async function deleteAllPlayersConstraintsSnapshots(
+export async function deleteAllPlayersAndConstraints(
   competitionId: string,
 ): Promise<void> {
-  // constraints and snapshots cascade on player delete, but we also delete snapshots explicitly
+  // constraints cascade on player delete, but we also delete them explicitly
   const { error: e1 } = await supabase
-    .from("snapshots")
+    .from("constraints")
     .delete()
     .eq("competition_id", competitionId);
   if (e1) throw e1;
   const { error: e2 } = await supabase
-    .from("constraints")
-    .delete()
-    .eq("competition_id", competitionId);
-  if (e2) throw e2;
-  const { error: e3 } = await supabase
     .from("players")
     .delete()
     .eq("competition_id", competitionId);
-  if (e3) throw e3;
+  if (e2) throw e2;
 }
 
 // ---------- constraints ----------
@@ -241,40 +224,21 @@ export async function createConstraint(
   return toConstraint(data);
 }
 
-export async function deleteConstraint(id: string): Promise<void> {
-  const { error } = await supabase.from("constraints").delete().eq("id", id);
-  if (error) throw error;
-}
-
-// ---------- snapshots ----------
-
-export async function listSnapshots(
-  competitionId: string,
-): Promise<Snapshot[]> {
+export async function updateConstraint(
+  id: string,
+  type: ConstraintType,
+): Promise<Constraint> {
   const { data, error } = await supabase
-    .from("snapshots")
-    .select("*")
-    .eq("competition_id", competitionId)
-    .order("created_at");
-  if (error) throw error;
-  return (data ?? []).map(toSnapshot);
-}
-
-export async function createSnapshot(
-  competitionId: string,
-  label: string,
-  data: Snapshot["data"],
-): Promise<Snapshot> {
-  const { data: row, error } = await supabase
-    .from("snapshots")
-    .insert({
-      competition_id: competitionId,
-      label,
-      player_count: data.players.length,
-      data,
-    })
+    .from("constraints")
+    .update({ type })
+    .eq("id", id)
     .select()
     .single();
   if (error) throw error;
-  return toSnapshot(row);
+  return toConstraint(data);
+}
+
+export async function deleteConstraint(id: string): Promise<void> {
+  const { error } = await supabase.from("constraints").delete().eq("id", id);
+  if (error) throw error;
 }

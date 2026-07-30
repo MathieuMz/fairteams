@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import * as repo from '../lib/repo'
-import type { Constraint } from '../domain/types'
+import type { Constraint, ConstraintType } from '../domain/types'
 
 export async function register(app: FastifyInstance) {
   // POST /competitions/:slug/constraints
@@ -13,6 +13,15 @@ export async function register(app: FastifyInstance) {
     if (player1Id === player2Id) return reply.status(400).send({ error: 'player1Id and player2Id must differ' })
     const created = await repo.createConstraint(competition.id, { player1Id, player2Id, type })
     return reply.status(201).send(created)
+  })
+
+  // PATCH /constraints/:id
+  app.patch('/constraints/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const { type } = req.body as { type?: ConstraintType }
+    if (!type) return reply.status(400).send({ error: 'type required' })
+    const updated = await repo.updateConstraint(id, type)
+    return updated
   })
 
   // DELETE /constraints/:id

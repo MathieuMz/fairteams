@@ -32,10 +32,10 @@ npm run dev   # api on :3001, front on :3000
 ## Key architecture decisions
 
 - **Algorithm lives in the API only** — `apps/api/src/domain/balancing.ts`. Not duplicated to frontend.
-- **`GET /competitions/:slug`** returns `{competition, players, constraints, snapshots}` in one call — frontend never cascades.
+- **`GET /competitions/:slug`** returns `{competition, players, constraints}` in one call — frontend never cascades.
 - **Types are duplicated** between `apps/api/src/domain/types.ts` and `apps/front/src/lib/types.ts` intentionally (no shared package).
 - **No auth** — usage is solo/trusted. Supabase RLS is permissive.
-- **Snapshot restore** deletes all data first (same as HTML prototype), so no snapshots remain after restore.
+- **No snapshots** — replaced by CSV export (team roster export button in the Teams tab, via papaparse). There is no server-side history/restore.
 - **Color system:** CSS custom properties — `--bg`, `--surface`, `--surface-2`, `--border`, `--text`, `--text-2`, `--text-muted`, `--accent`, `--accent-dark`, `--accent-tint`, `--warn`, `--warn-tint`, `--danger`, `--danger-tint`, `--radius`. Use these everywhere, no hard-coded colors.
 
 ## Next.js 16 breaking changes (relevant to this project)
@@ -57,7 +57,6 @@ apps/api/src/
   routes/competitions.ts       POST /competitions, GET /:slug, PATCH /:slug/config
   routes/players.ts            POST /:slug/players, PATCH /players/:id, POST /:slug/reset
   routes/constraints.ts        POST /:slug/constraints, DELETE /constraints/:id
-  routes/snapshots.ts          POST /:slug/snapshots, POST /:slug/snapshots/:id/restore
   routes/rebalance.ts          POST /:slug/rebalance-proposals, POST /:slug/apply-proposals
 
 apps/front/src/
@@ -67,12 +66,11 @@ apps/front/src/
   app/c/[slug]/page.tsx        Server component — awaits params, fetches data
   app/c/[slug]/competition-app.tsx  Main client component, tab state, rebalance flow
   app/c/[slug]/helpers.ts      Labels, isBeginner, computeTeamStats (display), demo data
-  app/c/[slug]/TabTeams.tsx    Team grid cards
+  app/c/[slug]/TabTeams.tsx    Team grid cards + CSV export of the roster
   app/c/[slug]/TabConfig.tsx   Config form + criteria weight sliders
   app/c/[slug]/TabImport.tsx   CSV import (papaparse) + demo loaders + reset
   app/c/[slug]/TabRoster.tsx   Manual player editing
   app/c/[slug]/TabConstraints.tsx  Constraint CRUD
-  app/c/[slug]/TabSnapshots.tsx    Snapshot create/restore
   app/c/[slug]/RebalancePreview.tsx  Editable proposals before confirm
   lib/types.ts                 Same types as API + CompetitionData
   lib/api.ts                   Typed API client (api.createCompetition, etc.)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Papa from "papaparse";
 import type { Player, Competition } from "@/lib/types";
 import { computeTeamStats } from "./helpers";
 import { api } from "@/lib/api";
@@ -33,6 +34,34 @@ export default function TabTeams({
     onUpdated();
   }
 
+  function exportCsv() {
+    const rows = [...players]
+      .sort((a, b) => {
+        const ta = a.team ?? Infinity;
+        const tb = b.team ?? Infinity;
+        if (ta !== tb) return ta - tb;
+        return a.gender.localeCompare(b.gender);
+      })
+      .map((p) => ({
+        equipe: p.team !== null ? `Équipe ${p.team + 1}` : "",
+        prenom: p.firstName,
+        nom: p.lastName,
+        sexe: p.gender,
+        capitaine: p.isCaptain ? "Capitaine" : "",
+      }));
+    const csv = Papa.unparse(rows, {
+      delimiter: ";",
+      header: false
+    });
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `equipes-${competition.slug}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!players.length) {
     return (
       <div className="text-center py-16">
@@ -52,7 +81,18 @@ export default function TabTeams({
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4">
+        <button
+          onClick={exportCsv}
+          className="rounded-lg border px-4 py-2 text-sm font-medium"
+          style={{
+            borderColor: "var(--border)",
+            background: "var(--surface)",
+            color: "var(--text)",
+          }}
+        >
+          Exporter en CSV
+        </button>
         <button
           onClick={onRebalance}
           className="rounded-lg px-4 py-2 text-sm font-medium text-white"

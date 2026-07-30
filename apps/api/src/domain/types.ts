@@ -41,15 +41,6 @@ export type Constraint = {
   type: ConstraintType
 }
 
-export type Snapshot = {
-  id: string
-  competitionId: string
-  label: string
-  playerCount: number
-  createdAt: string
-  data: { players: Player[]; config: CompetitionConfig }
-}
-
 export type RebalanceProposal = {
   playerId: string
   from: number

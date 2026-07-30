@@ -11,6 +11,7 @@
 --   ALTER TABLE fairteams.players DROP COLUMN IF EXISTS declared_level;
 --   ALTER TABLE fairteams.competitions ADD COLUMN IF NOT EXISTS weights jsonb NOT NULL DEFAULT '{"beginner":5,"level":5,"friends":5}';
 --   ALTER TABLE fairteams.competitions DROP COLUMN IF EXISTS priority;
+--   DROP TABLE IF EXISTS fairteams.snapshots; -- feature retirée au profit de l'export CSV
 
 create schema if not exists fairteams;
 set search_path = fairteams;
@@ -50,26 +51,14 @@ create table constraints (
   created_at timestamptz not null default now()
 );
 
-create table snapshots (
-  id uuid primary key default gen_random_uuid(),
-  competition_id uuid not null references competitions(id) on delete cascade,
-  label text not null,
-  player_count int not null,
-  data jsonb not null, -- copie complète de players + config au moment du snapshot
-  created_at timestamptz not null default now()
-);
-
 create index on players (competition_id);
 create index on constraints (competition_id);
-create index on snapshots (competition_id);
 
 -- Policies permissives (pas d'auth pour l'instant) — à resserrer si l'app devient multi-utilisateur
 alter table competitions enable row level security;
 alter table players enable row level security;
 alter table constraints enable row level security;
-alter table snapshots enable row level security;
 
 create policy "allow all - competitions" on competitions for all using (true) with check (true);
 create policy "allow all - players" on players for all using (true) with check (true);
 create policy "allow all - constraints" on constraints for all using (true) with check (true);
-create policy "allow all - snapshots" on snapshots for all using (true) with check (true);
