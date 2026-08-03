@@ -71,6 +71,9 @@ export const api = {
   rebalanceProposals: (slug: string) =>
     json<RebalanceProposal[]>(`/competitions/${slug}/rebalance-proposals`, { method: 'POST' }),
 
+  reshuffleProposals: (slug: string) =>
+    json<RebalanceProposal[]>(`/competitions/${slug}/reshuffle-proposals`, { method: 'POST' }),
+
   applyProposals: (slug: string, proposals: RebalanceProposal[]) =>
     json<Player[]>(`/competitions/${slug}/apply-proposals`, { method: 'POST', body: JSON.stringify({ proposals }) }),
 }

@@ -34,6 +34,25 @@ export async function register(app: FastifyInstance) {
   app.patch('/players/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
     const patch = req.body as Partial<Player>
+
+    const current = await repo.getPlayer(id)
+    if (!current) return reply.status(404).send({ error: 'player not found' })
+
+    // Deux capitaines ne peuvent jamais partager la même équipe.
+    const nextIsCaptain = patch.isCaptain ?? current.isCaptain
+    const nextTeam = 'team' in patch ? patch.team : current.team
+    if (nextIsCaptain && nextTeam !== null && nextTeam !== undefined) {
+      const siblings = await repo.listPlayers(current.competitionId)
+      const conflict = siblings.find(
+        (p) => p.id !== id && p.isCaptain && p.team === nextTeam,
+      )
+      if (conflict) {
+        return reply.status(409).send({
+          error: `${conflict.firstName} ${conflict.lastName} est déjà capitaine de l'équipe ${nextTeam + 1}`,
+        })
+      }
+    }
+
     const updated = await repo.updatePlayer(id, patch)
     return updated
   })

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import * as repo from '../lib/repo'
-import { generateRebalanceProposals } from '../domain/balancing'
+import { generateRebalanceProposals, generateReshuffleProposals } from '../domain/balancing'
 import type { RebalanceProposal } from '../domain/types'
 
 export async function register(app: FastifyInstance) {
@@ -16,6 +16,21 @@ export async function register(app: FastifyInstance) {
     ])
 
     const proposals = generateRebalanceProposals(players, competition, constraints)
+    return proposals
+  })
+
+  // POST /competitions/:slug/reshuffle-proposals  — repart de zéro (hors capitaines), sans muter la DB
+  app.post('/competitions/:slug/reshuffle-proposals', async (req, reply) => {
+    const { slug } = req.params as { slug: string }
+    const competition = await repo.getCompetitionBySlug(slug)
+    if (!competition) return reply.status(404).send({ error: 'competition not found' })
+
+    const [players, constraints] = await Promise.all([
+      repo.listPlayers(competition.id),
+      repo.listConstraints(competition.id),
+    ])
+
+    const proposals = generateReshuffleProposals(players, competition, constraints)
     return proposals
   })
 

@@ -83,27 +83,37 @@ export default function TabConstraints({ slug, players, constraints, onUpdated }
         {constraints.length === 0 && (
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Aucune contrainte définie.</p>
         )}
-        {constraints.map((c, i) => {
-          const q1 = players.find(p => p.id === c.player1Id)
-          const q2 = players.find(p => p.id === c.player2Id)
-          if (!q1 || !q2) return null
+        {constraints
+          .map(c => {
+            const q1 = players.find(p => p.id === c.player1Id)
+            const q2 = players.find(p => p.id === c.player2Id)
+            if (!q1 || !q2) return null
+            const bothAssigned = q1.team !== null && q2.team !== null
+            const sameTeam = bothAssigned && q1.team === q2.team
+            const wantSame = c.type === 'doit' || c.type === 'veut'
+            const satisfied = !bothAssigned ? null : (wantSame ? sameTeam : !sameTeam)
+            return { c, q1, q2, satisfied }
+          })
+          .filter((x): x is NonNullable<typeof x> => x !== null)
+          // Non respectées en premier, puis en attente d'affectation, puis respectées.
+          .sort((a, b) => {
+            const rank = (s: boolean | null) => s === false ? 0 : s === null ? 1 : 2
+            return rank(a.satisfied) - rank(b.satisfied)
+          })
+          .map(({ c, q1, q2, satisfied }, i, arr) => {
           const kind = RELATION_KIND[c.type]
           const sign = c.type.startsWith('ne') ? -1 : 1
           const badgeStyle = kind === 'hard'
             ? (sign > 0 ? { background: 'var(--accent-tint)', color: 'var(--accent-dark)' } : { background: 'var(--danger-tint)', color: 'var(--danger)' })
             : { background: 'var(--warn-tint)', color: 'var(--warn)' }
 
-          const bothAssigned = q1.team !== null && q2.team !== null
-          const sameTeam = bothAssigned && q1.team === q2.team
-          const wantSame = c.type === 'doit' || c.type === 'veut'
-          const satisfied = !bothAssigned ? null : (wantSame ? sameTeam : !sameTeam)
-          const statusDot = !bothAssigned ? null : satisfied
+          const statusDot = satisfied === null ? null : satisfied
             ? <span title="Respectée" style={{ color: 'var(--accent)' }}>✓</span>
             : <span title="Non respectée" style={{ color: 'var(--danger)' }}>✗</span>
 
           return (
             <div key={c.id} className="flex items-center justify-between py-3 gap-3"
-              style={{ borderBottom: i < constraints.length - 1 ? '1px solid var(--border)' : undefined }}>
+              style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : undefined }}>
               <span className="text-sm flex items-center gap-2 flex-wrap">
                 {statusDot}
                 {q1.firstName} {q1.lastName}

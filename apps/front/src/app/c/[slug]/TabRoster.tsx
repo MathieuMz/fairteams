@@ -1,21 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import type { Player, Competition } from "@/lib/types";
+import type { Player, Competition, Constraint } from "@/lib/types";
 import { api } from "@/lib/api";
+import { RELATION_LABELS, RELATION_KIND } from "./helpers";
 
 type Props = {
   players: Player[];
   competition: Competition;
+  constraints: Constraint[];
   onUpdated: () => void;
 };
 
 type Patch = { level?: number; isCaptain?: boolean; team?: number | null };
 
-export default function TabRoster({ players, competition, onUpdated }: Props) {
+export default function TabRoster({ players, competition, constraints, onUpdated }: Props) {
   const [search, setSearch] = useState("");
   const [patches, setPatches] = useState<Record<string, Patch>>({});
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   const dirty = Object.keys(patches).length > 0;
 
@@ -39,6 +50,8 @@ export default function TabRoster({ players, competition, onUpdated }: Props) {
       );
       setPatches({});
       onUpdated();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur lors de l'application des modifications");
     } finally {
       setSaving(false);
     }
@@ -88,10 +101,14 @@ export default function TabRoster({ players, competition, onUpdated }: Props) {
           const isCaptain = cur.isCaptain ?? p.isCaptain;
           const team = "team" in cur ? cur.team : p.team;
 
+          const ownConstraints = constraints.filter(
+            (c) => c.player1Id === p.id || c.player2Id === p.id,
+          );
+          const isExpanded = expanded.has(p.id);
+
           return (
             <div
               key={p.id}
-              className="flex items-center gap-3 px-4 py-3 text-sm"
               style={{
                 borderBottom:
                   i < filtered.length - 1
@@ -99,56 +116,132 @@ export default function TabRoster({ players, competition, onUpdated }: Props) {
                     : undefined,
               }}
             >
-              <span className="flex-1 font-medium">
-                {p.firstName} {p.lastName}
-              </span>
-              <span
-                className="flex items-center gap-1 text-xs"
-                style={{ color: "var(--text-2)" }}
-              >
-                niv.
-                <input
-                  type="number"
-                  step={1}
-                  min={1}
-                  max={100}
-                  value={level}
-                  className="w-24 rounded border px-2 py-0.5 text-xs"
+              <div className="flex items-center gap-3 px-4 py-3 text-sm">
+                <span className="flex-1 font-medium flex items-center gap-2">
+                  {p.firstName} {p.lastName}
+                  {ownConstraints.length > 0 && (
+                    <button
+                      onClick={() => toggleExpand(p.id)}
+                      className="rounded-lg border px-2 py-0.5 text-xs flex-shrink-0 font-normal"
+                      style={inputStyle}
+                    >
+                      {isExpanded ? "▲" : "▼"} {ownConstraints.length}
+                    </button>
+                  )}
+                </span>
+                <span
+                  className="flex items-center gap-1 text-xs"
+                  style={{ color: "var(--text-2)" }}
+                >
+                  niv.
+                  <input
+                    type="number"
+                    step={1}
+                    min={1}
+                    max={100}
+                    value={level}
+                    className="w-16 rounded border px-2 py-0.5 text-xs"
+                    style={inputStyle}
+                    onChange={(e) =>
+                      patch(p.id, { level: parseInt(e.target.value) || 0 })
+                    }
+                  />
+                </span>
+                <label
+                  className="flex items-center gap-1.5 text-xs cursor-pointer"
+                  style={{ color: "var(--text-2)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isCaptain}
+                    onChange={(e) => patch(p.id, { isCaptain: e.target.checked })}
+                  />
+                  capitaine
+                </label>
+                <select
+                  value={team === null || team === undefined ? "" : String(team)}
+                  className="rounded-lg border px-2 py-1 text-xs"
                   style={inputStyle}
                   onChange={(e) =>
-                    patch(p.id, { level: parseInt(e.target.value) || 0 })
+                    patch(p.id, {
+                      team:
+                        e.target.value === "" ? null : parseInt(e.target.value),
+                    })
                   }
-                />
-              </span>
-              <label
-                className="flex items-center gap-1.5 text-xs cursor-pointer"
-                style={{ color: "var(--text-2)" }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isCaptain}
-                  onChange={(e) => patch(p.id, { isCaptain: e.target.checked })}
-                />
-                capitaine
-              </label>
-              <select
-                value={team === null || team === undefined ? "" : String(team)}
-                className="rounded-lg border px-2 py-1 text-xs"
-                style={inputStyle}
-                onChange={(e) =>
-                  patch(p.id, {
-                    team:
-                      e.target.value === "" ? null : parseInt(e.target.value),
-                  })
-                }
-              >
-                <option value="">Non assigné</option>
-                {Array.from({ length: competition.numTeams }, (_, i) => (
-                  <option key={i} value={String(i)}>
-                    Équipe {i + 1}
-                  </option>
-                ))}
-              </select>
+                >
+                  <option value="">Non assigné</option>
+                  {Array.from({ length: competition.numTeams }, (_, i) => (
+                    <option key={i} value={String(i)}>
+                      Équipe {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {isExpanded && ownConstraints.length > 0 && (
+                <div
+                  className="px-4 pb-3 -mt-1"
+                  style={{ borderTop: "1px solid var(--border)" }}
+                >
+                  {ownConstraints.map((c) => {
+                    const isSource = c.player1Id === p.id;
+                    const otherId = isSource ? c.player2Id : c.player1Id;
+                    const other = players.find((x) => x.id === otherId);
+                    if (!other) return null;
+
+                    const bothAssigned = p.team !== null && other.team !== null;
+                    const sameTeam = bothAssigned && p.team === other.team;
+                    const wantSame = c.type === "doit" || c.type === "veut";
+                    const satisfied = !bothAssigned ? null : wantSame ? sameTeam : !sameTeam;
+                    const kind = RELATION_KIND[c.type];
+                    const otherName = `${other.firstName} ${other.lastName}`;
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-2 py-1.5 text-xs"
+                      >
+                        {satisfied === null ? (
+                          <span style={{ color: "var(--text-muted)" }} title="Joueur non assigné">•</span>
+                        ) : satisfied ? (
+                          <span title="Respectée" style={{ color: "var(--accent)" }}>✓</span>
+                        ) : (
+                          <span title="Non respectée" style={{ color: "var(--danger)" }}>✗</span>
+                        )}
+                        {isSource ? (
+                          <>
+                            <span
+                              className="px-1.5 py-0.5 rounded font-medium"
+                              style={
+                                kind === "hard"
+                                  ? { background: "var(--accent-tint)", color: "var(--accent-dark)" }
+                                  : { background: "var(--warn-tint)", color: "var(--warn)" }
+                              }
+                            >
+                              {RELATION_LABELS[c.type]}
+                            </span>
+                            <span>{otherName}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{otherName}</span>
+                            <span
+                              className="px-1.5 py-0.5 rounded font-medium"
+                              style={
+                                kind === "hard"
+                                  ? { background: "var(--accent-tint)", color: "var(--accent-dark)" }
+                                  : { background: "var(--warn-tint)", color: "var(--warn)" }
+                              }
+                            >
+                              {RELATION_LABELS[c.type]}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

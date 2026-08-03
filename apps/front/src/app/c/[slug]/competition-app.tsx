@@ -50,6 +50,17 @@ export default function CompetitionApp({ slug, initialData }: Props) {
     }
   }
 
+  async function requestReshuffle() {
+    setRebalanceLoading(true)
+    try {
+      const proposals = await api.reshuffleProposals(slug)
+      setRebalanceProposals(proposals)
+      setActiveTab('teams')
+    } finally {
+      setRebalanceLoading(false)
+    }
+  }
+
   async function confirmRebalance(proposals: RebalanceProposal[]) {
     setConfirming(true)
     try {
@@ -72,16 +83,16 @@ export default function CompetitionApp({ slug, initialData }: Props) {
   const surfaceStyle = { background: 'var(--surface)', borderColor: 'var(--border)' }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 pb-16">
+    <div className="h-screen w-full max-w-4xl mx-auto px-4 pt-6 flex flex-col overflow-x-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-5 flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <a href="/" className="w-8 h-8 rounded-full flex-shrink-0 relative" style={{ background: 'var(--accent)' }}>
             <div className="absolute inset-[7px] rounded-full" style={{ background: 'var(--bg)' }} />
           </a>
-          <div>
-            <h1 className="text-lg font-semibold leading-tight">{competition.name}</h1>
-            <p className="text-xs font-mono" style={{ color: 'var(--text-2)' }}>
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold leading-tight truncate">{competition.name}</h1>
+            <p className="text-xs font-mono truncate" style={{ color: 'var(--text-2)' }}>
               {players.length} joueur{players.length > 1 ? 's' : ''} · {competition.numTeams} équipes · clé: {slug}
             </p>
           </div>
@@ -89,10 +100,10 @@ export default function CompetitionApp({ slug, initialData }: Props) {
       </div>
 
       {/* Nav */}
-      <div className="flex gap-1 p-1 rounded-xl mb-6 flex-wrap" style={{ background: 'var(--surface-2)' }}>
+      <div className="flex gap-1 p-1 rounded-xl mb-6 flex-nowrap overflow-x-auto flex-shrink-0" style={{ background: 'var(--surface-2)' }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => { setRebalanceProposals(null); setActiveTab(t.id) }}
-            className="flex-1 min-w-[90px] rounded-lg px-3 py-2 text-sm font-medium transition-colors"
+            className="flex-1 min-w-[90px] whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors"
             style={activeTab === t.id
               ? { background: 'var(--surface)', color: 'var(--text)', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
               : { background: 'transparent', color: 'var(--text-2)' }}>
@@ -102,47 +113,51 @@ export default function CompetitionApp({ slug, initialData }: Props) {
       </div>
 
       {/* Content */}
-      {rebalanceProposals !== null ? (
-        <RebalancePreview
-          proposals={rebalanceProposals}
-          players={players}
-          onConfirm={confirmRebalance}
-          onCancel={() => setRebalanceProposals(null)}
-          confirming={confirming}
-        />
-      ) : activeTab === 'teams' ? (
-        <TabTeams
-          players={players}
-          competition={competition}
-          onRebalance={requestRebalance}
-          onUpdated={handleUpdated}
-        />
-      ) : activeTab === 'config' ? (
-        <TabConfig
-          competition={competition}
-          onUpdated={handleUpdated}
-        />
-      ) : activeTab === 'import' ? (
-        <TabImport
-          slug={slug}
-          competition={competition}
-          players={players}
-          onUpdated={handleUpdatedAndSwitchTeams}
-        />
-      ) : activeTab === 'roster' ? (
-        <TabRoster
-          players={players}
-          competition={competition}
-          onUpdated={handleUpdated}
-        />
-      ) : (
-        <TabConstraints
-          slug={slug}
-          players={players}
-          constraints={constraints}
-          onUpdated={handleUpdated}
-        />
-      )}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-16" style={{ scrollbarGutter: 'stable' }}>
+        {rebalanceProposals !== null ? (
+          <RebalancePreview
+            proposals={rebalanceProposals}
+            players={players}
+            onConfirm={confirmRebalance}
+            onCancel={() => setRebalanceProposals(null)}
+            confirming={confirming}
+          />
+        ) : activeTab === 'teams' ? (
+          <TabTeams
+            players={players}
+            competition={competition}
+            onRebalance={requestRebalance}
+            onReshuffle={requestReshuffle}
+            onUpdated={handleUpdated}
+          />
+        ) : activeTab === 'config' ? (
+          <TabConfig
+            competition={competition}
+            onUpdated={handleUpdated}
+          />
+        ) : activeTab === 'import' ? (
+          <TabImport
+            slug={slug}
+            competition={competition}
+            players={players}
+            onUpdated={handleUpdatedAndSwitchTeams}
+          />
+        ) : activeTab === 'roster' ? (
+          <TabRoster
+            players={players}
+            competition={competition}
+            constraints={constraints}
+            onUpdated={handleUpdated}
+          />
+        ) : (
+          <TabConstraints
+            slug={slug}
+            players={players}
+            constraints={constraints}
+            onUpdated={handleUpdated}
+          />
+        )}
+      </div>
 
       {rebalanceLoading && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">

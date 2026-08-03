@@ -136,6 +136,16 @@ export async function listPlayers(competitionId: string): Promise<Player[]> {
   return (data ?? []).map(toPlayer);
 }
 
+export async function getPlayer(playerId: string): Promise<Player | null> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("*")
+    .eq("id", playerId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toPlayer(data) : null;
+}
+
 export async function bulkCreatePlayers(
   competitionId: string,
   inputs: Omit<Player, "id" | "competitionId">[],

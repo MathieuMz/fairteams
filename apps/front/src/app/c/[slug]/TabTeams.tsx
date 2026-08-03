@@ -10,6 +10,7 @@ type Props = {
   players: Player[];
   competition: Competition;
   onRebalance: () => void;
+  onReshuffle: () => void;
   onUpdated: () => void;
 };
 
@@ -17,21 +18,18 @@ export default function TabTeams({
   players,
   competition,
   onRebalance,
+  onReshuffle,
   onUpdated,
 }: Props) {
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-
-  function toggleExpand(t: number) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(t) ? next.delete(t) : next.add(t);
-      return next;
-    });
-  }
+  const [showPlayers, setShowPlayers] = useState(true);
 
   async function assignCaptain(playerId: string, team: number) {
-    await api.updatePlayer(playerId, { team });
-    onUpdated();
+    try {
+      await api.updatePlayer(playerId, { team });
+      onUpdated();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur lors de l'assignation");
+    }
   }
 
   function exportCsv() {
@@ -81,25 +79,59 @@ export default function TabTeams({
 
   return (
     <div>
-      <div className="flex justify-end gap-2 mb-4">
-        <button
-          onClick={exportCsv}
-          className="rounded-lg border px-4 py-2 text-sm font-medium"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--surface)",
-            color: "var(--text)",
-          }}
-        >
-          Exporter en CSV
-        </button>
-        <button
-          onClick={onRebalance}
-          className="rounded-lg px-4 py-2 text-sm font-medium text-white"
-          style={{ background: "var(--accent)" }}
-        >
-          Proposer un rééquilibrage
-        </button>
+      <div className="flex justify-between gap-2 mb-4">
+        <div className="flex gap-2">
+          <button
+            onClick={onRebalance}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+            style={{ background: "var(--accent)" }}
+          >
+            Améliorer
+          </button>
+          <button
+            onClick={onReshuffle}
+            className="rounded-lg border px-4 py-2 text-sm font-medium"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--surface)",
+              color: "var(--text)",
+            }}
+          >
+            Recommencer
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <span style={{ color: "var(--text-2)" }}>Voir joueurs</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showPlayers}
+              onClick={() => setShowPlayers((v) => !v)}
+              className="relative w-9 h-5 rounded-full transition-colors flex-shrink-0"
+              style={{ background: showPlayers ? "var(--accent)" : "var(--border)" }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform"
+                style={{
+                  background: "var(--surface)",
+                  transform: showPlayers ? "translateX(16px)" : "translateX(0)",
+                }}
+              />
+            </button>
+          </label>
+          <button
+            onClick={exportCsv}
+            className="rounded-lg border px-4 py-2 text-sm font-medium"
+            style={{
+              borderColor: "var(--border)",
+              background: "var(--surface)",
+              color: "var(--text)",
+            }}
+          >
+            Exporter en CSV
+          </button>
+        </div>
       </div>
 
       {unassignedCaptains.length > 0 && (
@@ -158,7 +190,6 @@ export default function TabTeams({
             stats.beginners > c.beginnerCap ||
             stats.men > c.targetMen ||
             stats.women > c.targetWomen;
-          const isExpanded = expanded.has(t);
 
           return (
             <div
@@ -239,19 +270,7 @@ export default function TabTeams({
                 </div>
               ))}
 
-              <button
-                onClick={() => toggleExpand(t)}
-                className="w-full mt-2 rounded-lg border px-3 py-1.5 text-xs"
-                style={{
-                  borderColor: "var(--border)",
-                  background: "var(--surface)",
-                  color: "var(--text)",
-                }}
-              >
-                {isExpanded ? "Masquer les joueurs" : "Voir les joueurs"}
-              </button>
-
-              {isExpanded && (
+              {showPlayers && (
                 <div
                   className="mt-3 pt-3"
                   style={{ borderTop: "1px solid var(--border)" }}
