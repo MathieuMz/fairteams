@@ -186,6 +186,11 @@ export async function updatePlayer(
   return toPlayer(data);
 }
 
+export async function deletePlayer(playerId: string): Promise<void> {
+  const { error } = await supabase.from("players").delete().eq("id", playerId);
+  if (error) throw error;
+}
+
 export async function deleteAllPlayersAndConstraints(
   competitionId: string,
 ): Promise<void> {

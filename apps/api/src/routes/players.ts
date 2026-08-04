@@ -57,6 +57,15 @@ export async function register(app: FastifyInstance) {
     return updated
   })
 
+  // DELETE /players/:id
+  app.delete('/players/:id', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const current = await repo.getPlayer(id)
+    if (!current) return reply.status(404).send({ error: 'player not found' })
+    await repo.deletePlayer(id)
+    return reply.status(204).send()
+  })
+
   // POST /competitions/:slug/reset  — efface joueurs + contraintes
   app.post('/competitions/:slug/reset', async (req, reply) => {
     const { slug } = req.params as { slug: string }
