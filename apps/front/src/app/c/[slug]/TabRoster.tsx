@@ -116,21 +116,23 @@ export default function TabRoster({ players, competition, constraints, onUpdated
   return (
     <div>
       {dirty && (
-        <div
-          className="flex items-center gap-3 p-3 rounded-xl mb-3 text-sm"
-          style={{ background: "var(--warn-tint)", color: "var(--warn)" }}
-        >
-          <span className="flex-1">
-            Des modifications ne sont pas encore appliquées.
-          </span>
-          <button
-            onClick={applyChanges}
-            disabled={saving}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--accent)" }}
+        <div className="fixed bottom-4 inset-x-0 z-50 flex justify-center px-4">
+          <div
+            className="flex items-center gap-3 p-3 rounded-xl text-sm shadow-lg border w-full max-w-4xl"
+            style={{ background: "var(--warn-tint)", color: "var(--warn)", borderColor: "var(--border)" }}
           >
-            {saving ? "Application…" : "Appliquer"}
-          </button>
+            <span className="flex-1">
+              Des modifications ne sont pas encore appliquées.
+            </span>
+            <button
+              onClick={applyChanges}
+              disabled={saving}
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              style={{ background: "var(--accent)" }}
+            >
+              {saving ? "Application…" : "Appliquer"}
+            </button>
+          </div>
         </div>
       )}
       <div
