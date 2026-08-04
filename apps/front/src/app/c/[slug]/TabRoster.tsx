@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Player, Competition, Constraint } from "@/lib/types";
+import type { Player, Competition, Constraint, Gender } from "@/lib/types";
 import { api } from "@/lib/api";
 import { RELATION_LABELS, RELATION_KIND } from "./helpers";
 
@@ -14,11 +14,19 @@ type Props = {
 
 type Patch = { level?: number; isCaptain?: boolean; team?: number | null };
 
+const emptyNewPlayer = { firstName: "", lastName: "", gender: "H" as Gender, level: 50 };
+
 export default function TabRoster({ players, competition, constraints, onUpdated }: Props) {
   const [search, setSearch] = useState("");
   const [patches, setPatches] = useState<Record<string, Patch>>({});
   const [saving, setSaving] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [newPlayer, setNewPlayer] = useState(emptyNewPlayer);
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -57,6 +65,51 @@ export default function TabRoster({ players, competition, constraints, onUpdated
     }
   }
 
+  async function removePlayer(id: string) {
+    setConfirmRemoveId(null);
+    setRemovingId(id);
+    try {
+      await api.deletePlayer(id);
+      setPatches((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      onUpdated();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur lors de la suppression du joueur");
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  async function addPlayer() {
+    const firstName = newPlayer.firstName.trim();
+    const lastName = newPlayer.lastName.trim();
+    if (!firstName || !lastName) {
+      setAddError("Prénom et nom sont requis.");
+      return;
+    }
+    if (newPlayer.level < 1 || newPlayer.level > 100) {
+      setAddError("Le niveau doit être entre 1 et 100.");
+      return;
+    }
+    setAddError(null);
+    setAdding(true);
+    try {
+      await api.addPlayers(competition.slug, [
+        { ...newPlayer, firstName, lastName, isCaptain: false, team: null },
+      ]);
+      setNewPlayer(emptyNewPlayer);
+      onUpdated();
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : "Erreur lors de l'ajout du joueur");
+    } finally {
+      setAdding(false);
+    }
+  }
+
   const inputStyle = {
     borderColor: "var(--border)",
     background: "var(--surface)",
@@ -67,22 +120,112 @@ export default function TabRoster({ players, competition, constraints, onUpdated
     <div>
       {dirty && (
         <div
-          className="flex items-center gap-3 p-3 rounded-xl mb-3 text-sm"
-          style={{ background: "var(--warn-tint)", color: "var(--warn)" }}
+          className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 mb-3 rounded-xl text-sm font-medium shadow-md border"
+          style={{ background: "var(--warn)", color: "#fff", borderColor: "var(--warn)" }}
         >
-          <span className="flex-1">
-            Des modifications ne sont pas encore appliquées.
-          </span>
+          <span className="flex-1">Modifications non sauvegardées</span>
+          <button
+            onClick={() => setPatches({})}
+            disabled={saving}
+            className="rounded-lg px-3 py-1.5 text-xs disabled:opacity-50"
+            style={{ color: "rgba(255,255,255,0.75)" }}
+          >
+            Annuler
+          </button>
           <button
             onClick={applyChanges}
             disabled={saving}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--accent)" }}
+            className="rounded-lg px-4 py-1.5 text-xs font-semibold disabled:opacity-50"
+            style={{ background: "#fff", color: "var(--warn)" }}
           >
-            {saving ? "Application…" : "Appliquer"}
+            {saving ? "Sauvegarde…" : "Sauvegarder"}
           </button>
         </div>
       )}
+      <div className="mb-3">
+        {!showAddForm ? (
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="rounded-lg px-4 py-1.5 text-sm font-medium text-white"
+            style={{ background: "var(--accent)" }}
+          >
+            + Ajouter un joueur
+          </button>
+        ) : (
+          <div
+            className="rounded-xl border p-4"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <p
+                className="text-xs font-semibold uppercase tracking-wider"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Ajouter un joueur
+              </p>
+              <button
+                onClick={() => { setShowAddForm(false); setNewPlayer(emptyNewPlayer); setAddError(null); }}
+                className="text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Annuler
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="Prénom"
+                value={newPlayer.firstName}
+                onChange={(e) => setNewPlayer((p) => ({ ...p, firstName: e.target.value }))}
+                className="rounded-lg border px-3 py-1.5 text-sm outline-none flex-1 min-w-[120px]"
+                style={inputStyle}
+              />
+              <input
+                type="text"
+                placeholder="Nom"
+                value={newPlayer.lastName}
+                onChange={(e) => setNewPlayer((p) => ({ ...p, lastName: e.target.value }))}
+                className="rounded-lg border px-3 py-1.5 text-sm outline-none flex-1 min-w-[120px]"
+                style={inputStyle}
+              />
+              <input
+                type="number"
+                min={1}
+                max={100}
+                placeholder="Niveau"
+                value={newPlayer.level}
+                onChange={(e) =>
+                  setNewPlayer((p) => ({ ...p, level: parseInt(e.target.value) || 0 }))
+                }
+                className="w-20 rounded-lg border px-3 py-1.5 text-sm outline-none"
+                style={inputStyle}
+              />
+              <select
+                value={newPlayer.gender}
+                onChange={(e) => setNewPlayer((p) => ({ ...p, gender: e.target.value as Gender }))}
+                className="rounded-lg border px-2 py-1.5 text-sm"
+                style={inputStyle}
+              >
+                <option value="H">Homme</option>
+                <option value="F">Femme</option>
+              </select>
+              <button
+                onClick={async () => { await addPlayer(); setShowAddForm(false); }}
+                disabled={adding}
+                className="rounded-lg px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                style={{ background: "var(--accent)" }}
+              >
+                {adding ? "Ajout…" : "Ajouter"}
+              </button>
+            </div>
+            {addError && (
+              <p className="mt-2 text-sm" style={{ color: "var(--danger)" }}>
+                {addError}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
       <input
         type="text"
         placeholder="Rechercher un joueur"
@@ -100,7 +243,6 @@ export default function TabRoster({ players, competition, constraints, onUpdated
           const level = cur.level ?? p.level;
           const isCaptain = cur.isCaptain ?? p.isCaptain;
           const team = "team" in cur ? cur.team : p.team;
-
           const ownConstraints = constraints.filter(
             (c) => c.player1Id === p.id || c.player2Id === p.id,
           );
@@ -176,6 +318,35 @@ export default function TabRoster({ players, competition, constraints, onUpdated
                     </option>
                   ))}
                 </select>
+                {confirmRemoveId === p.id ? (
+                  <span className="flex items-center gap-1 flex-shrink-0">
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>Confirmer ?</span>
+                    <button
+                      onClick={() => removePlayer(p.id)}
+                      disabled={removingId === p.id}
+                      className="rounded px-2 py-0.5 text-xs font-medium text-white disabled:opacity-50"
+                      style={{ background: "var(--danger)" }}
+                    >
+                      {removingId === p.id ? "…" : "Oui"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmRemoveId(null)}
+                      className="rounded px-2 py-0.5 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      Non
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setConfirmRemoveId(p.id)}
+                    className="flex-shrink-0 rounded p-1 hover:opacity-70"
+                    style={{ color: "var(--danger)" }}
+                    title="Retirer ce joueur"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {isExpanded && ownConstraints.length > 0 && (

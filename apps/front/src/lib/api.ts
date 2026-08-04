@@ -56,6 +56,9 @@ export const api = {
   updatePlayer: (id: string, patch: Partial<Player>) =>
     json<Player>(`/players/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 
+  deletePlayer: (id: string) =>
+    json<void>(`/players/${id}`, { method: 'DELETE' }),
+
   resetData: (slug: string) =>
     json<void>(`/competitions/${slug}/reset`, { method: 'POST' }),
 
