@@ -18,6 +18,8 @@ const emptyNewPlayer = { firstName: "", lastName: "", gender: "H" as Gender, lev
 
 export default function TabRoster({ players, competition, constraints, onUpdated }: Props) {
   const [search, setSearch] = useState("");
+  const [genderFilter, setGenderFilter] = useState<"" | Gender>("");
+  const [captainFilter, setCaptainFilter] = useState<"" | "yes" | "no">("");
   const [patches, setPatches] = useState<Record<string, Patch>>({});
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -42,6 +44,12 @@ export default function TabRoster({ players, competition, constraints, onUpdated
     .filter((p) =>
       `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()),
     )
+    .filter((p) => (genderFilter === "" ? true : p.gender === genderFilter))
+    .filter((p) => {
+      const isCaptain = patches[p.id]?.isCaptain ?? p.isCaptain;
+      if (captainFilter === "") return true;
+      return captainFilter === "yes" ? isCaptain : !isCaptain;
+    })
     .sort((a, b) =>
       `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`, "fr"),
     );
@@ -226,14 +234,36 @@ export default function TabRoster({ players, competition, constraints, onUpdated
           </div>
         )}
       </div>
-      <input
-        type="text"
-        placeholder="Rechercher un joueur"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full rounded-lg border px-3 py-2 text-sm mb-3 outline-none"
-        style={inputStyle}
-      />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <input
+          type="text"
+          placeholder="Rechercher un joueur"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="flex-1 min-w-[160px] rounded-lg border px-3 py-2 text-sm outline-none"
+          style={inputStyle}
+        />
+        <select
+          value={genderFilter}
+          onChange={(e) => setGenderFilter(e.target.value as "" | Gender)}
+          className="rounded-lg border px-2 py-2 text-sm"
+          style={inputStyle}
+        >
+          <option value="">Tous les genres</option>
+          <option value="H">Homme</option>
+          <option value="F">Femme</option>
+        </select>
+        <select
+          value={captainFilter}
+          onChange={(e) => setCaptainFilter(e.target.value as "" | "yes" | "no")}
+          className="rounded-lg border px-2 py-2 text-sm"
+          style={inputStyle}
+        >
+          <option value="">Capitaine : tous</option>
+          <option value="yes">Capitaine : oui</option>
+          <option value="no">Capitaine : non</option>
+        </select>
+      </div>
       <div
         className="rounded-xl border"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
